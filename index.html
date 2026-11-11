@@ -236,6 +236,12 @@ button { cursor: pointer; }
   border-top: 1px solid color-mix(in srgb, currentColor 22%, transparent);
 }
 .presupuesto-vista { display: flex; flex-direction: column; gap: 8px; }
+.presupuesto-titulo {
+  margin: 0;
+  font-size: 0.8rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.04em;
+  opacity: 0.75;
+}
 .presupuesto-barra {
   height: 8px; border-radius: 4px;
   background: color-mix(in srgb, currentColor 18%, transparent);
@@ -489,7 +495,14 @@ fieldset.campo { border: 0; margin: 0; padding: 0; }
 
 .lista-vacia { margin: 0; padding: 28px 0 12px; text-align: center; color: var(--tenue); }
 
-.nota-guardado { margin: 14px 0 0; font-size: 0.82rem; color: var(--tenue); }
+.respaldo {
+  margin-top: 20px; padding-top: 14px;
+  border-top: 1px solid var(--linea);
+  display: flex; flex-direction: column; gap: 10px;
+}
+.respaldo-botones { display: flex; flex-wrap: wrap; gap: 8px; }
+.respaldo .boton { min-height: 42px; padding: 8px 14px; font-size: 0.9rem; }
+.nota-guardado { margin: 0; font-size: 0.85rem; color: var(--tenue); }
 
 /* =========================================================
    9. AVISO FLOTANTE (deshacer borrado)
@@ -542,6 +555,7 @@ fieldset.campo { border: 0; margin: 0; padding: 0; }
 
         <div class="presupuesto" id="presupuesto">
           <div class="presupuesto-vista" id="presupuesto-vista">
+            <p class="presupuesto-titulo" id="presupuesto-titulo"></p>
             <div class="presupuesto-barra" id="presupuesto-barra"><b id="presupuesto-relleno"></b></div>
             <div class="presupuesto-fila">
               <span class="presupuesto-estado" id="presupuesto-estado"></span>
@@ -550,8 +564,8 @@ fieldset.campo { border: 0; margin: 0; padding: 0; }
             <p class="presupuesto-nota" id="presupuesto-nota"></p>
           </div>
           <form class="presupuesto-form oculto" id="presupuesto-form" novalidate>
-            <label class="solo-lectores" for="presupuesto-monto">Presupuesto mensual en soles</label>
-            <input id="presupuesto-monto" type="number" inputmode="decimal" step="0.01" min="0" placeholder="Presupuesto del mes, ej.: 400" autocomplete="off">
+            <label class="solo-lectores" for="presupuesto-monto">Presupuesto semanal en soles</label>
+            <input id="presupuesto-monto" type="number" inputmode="decimal" step="0.01" min="0" placeholder="Presupuesto semanal, ej.: 90" autocomplete="off">
             <button class="boton-mini boton-mini-lleno" type="submit">Guardar</button>
             <button class="boton-mini" id="presupuesto-quitar" type="button">Quitar</button>
           </form>
@@ -630,7 +644,14 @@ fieldset.campo { border: 0; margin: 0; padding: 0; }
           <button class="boton boton-secundario" id="borrar-ejemplos" type="button">Borrar ejemplos</button>
         </div>
         <div id="lista"></div>
-        <p class="nota-guardado" id="nota-guardado"></p>
+        <div class="respaldo">
+          <p class="nota-guardado" id="nota-guardado"></p>
+          <div class="respaldo-botones">
+            <button class="boton boton-secundario" id="exportar" type="button">Exportar respaldo (CSV)</button>
+            <button class="boton boton-secundario" id="importar" type="button">Importar respaldo</button>
+            <input class="oculto" id="archivo-importar" type="file" accept=".csv,text/csv,text/comma-separated-values,text/plain">
+          </div>
+        </div>
       </section>
     </div>
 
@@ -662,6 +683,8 @@ const CATEGORIAS = [
 const CLAVE_GUARDADO = "mis-gastos-v1";          // gastos, en localStorage
 const CLAVE_AJUSTES  = "mis-gastos-ajustes-v1";  // presupuesto y gastos rápidos
 
+const PRESUPUESTO_SEMANAL_INICIAL = 90;   // soles por semana; la semana va de lunes a domingo
+
 // Gastos rápidos que aparecen la primera vez (se pueden quitar con "Editar")
 const RAPIDOS_INICIALES = [
   { id: "r1", monto: 2.5, categoria: "transporte", descripcion: "Pasaje" },
@@ -678,7 +701,8 @@ const RAPIDOS_INICIALES = [
 let gastos = [];              // todos los gastos, de todos los meses
 let mesVisible = "";          // mes que se muestra, formato "AAAA-MM"
 let editandoId = null;        // id del gasto en edición (null = creando uno nuevo)
-let ajustes = { presupuesto: null, rapidos: [] };   // presupuesto mensual (en soles) y gastos rápidos
+// presupuesto semanal (en soles), gastos rápidos y fecha del último respaldo
+let ajustes = { presupuestoSemanal: null, rapidos: [], ultimoRespaldo: null };
 let editandoPresupuesto = false;   // true mientras se muestra el campo para cambiarlo
 let editandoRapidos = false;       // true = al tocar un gasto rápido se quita en vez de agregarse
 let accionDeshacer = null;         // qué hacer si se toca "Deshacer" en el aviso
@@ -712,15 +736,22 @@ function guardarGastos() {
 }
 
 function cargarAjustes() {
+  const iniciales = { presupuestoSemanal: PRESUPUESTO_SEMANAL_INICIAL, rapidos: RAPIDOS_INICIALES.slice(), ultimoRespaldo: null };
   try {
     const datos = JSON.parse(localStorage.getItem(CLAVE_AJUSTES));
     if (datos && Array.isArray(datos.rapidos)) {
-      return { presupuesto: datos.presupuesto > 0 ? datos.presupuesto : null, rapidos: datos.rapidos };
+      return {
+        // undefined = nunca se definió (usa el inicial); null = el usuario lo quitó
+        presupuestoSemanal: datos.presupuestoSemanal === undefined ? PRESUPUESTO_SEMANAL_INICIAL
+                          : datos.presupuestoSemanal > 0 ? datos.presupuestoSemanal : null,
+        rapidos: datos.rapidos,
+        ultimoRespaldo: datos.ultimoRespaldo || null,
+      };
     }
   } catch (error) {
     guardadoDisponible = false;
   }
-  return { presupuesto: null, rapidos: RAPIDOS_INICIALES.slice() };
+  return iniciales;
 }
 
 function guardarAjustes() {
@@ -744,10 +775,23 @@ const aCentimos = (monto) => Math.round(monto * 100);
 
 const dosDigitos = (n) => String(n).padStart(2, "0");
 
-function fechaDeHoy() {                       // "AAAA-MM-DD" en hora local
-  const d = new Date();
+function aTexto(d) {                          // objeto Date -> "AAAA-MM-DD" en hora local
   return `${d.getFullYear()}-${dosDigitos(d.getMonth() + 1)}-${dosDigitos(d.getDate())}`;
 }
+
+const fechaDeHoy = () => aTexto(new Date());
+
+// La semana del presupuesto: de lunes a domingo, la que contiene el día de hoy
+function semanaActual() {
+  const hoy = new Date();
+  const posicion = (hoy.getDay() + 6) % 7;    // lunes = 0 ... domingo = 6
+  const lunes = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() - posicion);
+  const domingo = new Date(lunes.getFullYear(), lunes.getMonth(), lunes.getDate() + 6);
+  return { lunes: aTexto(lunes), domingo: aTexto(domingo), diasQueQuedan: 7 - posicion };
+}
+
+const fechaCorta = (fecha) =>
+  aFecha(fecha).toLocaleDateString("es-PE", { day: "numeric", month: "short" });
 
 function aFecha(texto) {                      // "2026-11-10" -> objeto Date
   const [anio, mes, dia] = texto.split("-").map(Number);
@@ -815,7 +859,7 @@ function pintarTodo() {
 
   $("mes-actual").textContent = nombreDelMes(mesVisible);
   pintarTotal(lista, totales, total);
-  pintarPresupuesto(total);
+  pintarPresupuesto();
   pintarRapidos();
   pintarGrafico(lista, totales, total);
   pintarLeyenda(totales, total);
@@ -823,7 +867,7 @@ function pintarTodo() {
 
   $("aviso-ejemplos").classList.toggle("oculto", !gastos.some((g) => g.ejemplo));
   $("nota-guardado").textContent = guardadoDisponible
-    ? "Tus gastos se guardan solo en este navegador."
+    ? "Tus gastos se guardan solo en este navegador. " + textoUltimoRespaldo()
     : "Este navegador no permite guardar: los gastos se perderán al cerrar la página.";
 }
 
@@ -844,26 +888,44 @@ function pintarTotal(lista, totales, total) {
   );
 }
 
-function pintarPresupuesto(total) {           // total viene en céntimos
+function textoUltimoRespaldo() {
+  if (!ajustes.ultimoRespaldo) return "Aún no has hecho un respaldo.";
+  const dias = Math.round((aFecha(fechaDeHoy()) - aFecha(ajustes.ultimoRespaldo)) / 86400000);
+  if (dias <= 0) return "Último respaldo: hoy.";
+  return dias === 1 ? "Último respaldo: ayer." : "Último respaldo: hace " + dias + " días.";
+}
+
+// Presupuesto semanal: siempre muestra la semana actual (lunes a domingo),
+// sin importar qué mes se esté viendo, porque una semana puede cruzar dos meses.
+function pintarPresupuesto() {
   const caja = $("presupuesto");
   $("presupuesto-vista").classList.toggle("oculto", editandoPresupuesto);
   $("presupuesto-form").classList.toggle("oculto", !editandoPresupuesto);
   if (editandoPresupuesto) return;
 
-  const hayPresupuesto = ajustes.presupuesto > 0;
+  const hayPresupuesto = ajustes.presupuestoSemanal > 0;
+  $("presupuesto-titulo").classList.toggle("oculto", !hayPresupuesto);
   $("presupuesto-barra").classList.toggle("oculto", !hayPresupuesto);
   $("presupuesto-nota").classList.toggle("oculto", !hayPresupuesto);
-  $("presupuesto-editar").textContent = hayPresupuesto ? "Cambiar" : "Definir presupuesto";
+  $("presupuesto-editar").textContent = hayPresupuesto ? "Cambiar" : "Definir presupuesto semanal";
 
   if (!hayPresupuesto) {
     caja.dataset.estado = "";
-    $("presupuesto-estado").textContent = "Sin presupuesto mensual";
+    $("presupuesto-estado").textContent = "Sin presupuesto semanal";
     return;
   }
 
-  const tope = aCentimos(ajustes.presupuesto);
-  const resto = tope - total;
-  const porcentaje = Math.round((total / tope) * 100);
+  const semana = semanaActual();
+  const gastado = gastos
+    .filter((g) => g.fecha >= semana.lunes && g.fecha <= semana.domingo)
+    .reduce((suma, g) => suma + aCentimos(g.monto), 0);
+
+  const tope = aCentimos(ajustes.presupuestoSemanal);
+  const resto = tope - gastado;
+  const porcentaje = Math.round((gastado / tope) * 100);
+
+  $("presupuesto-titulo").textContent =
+    "Esta semana · " + fechaCorta(semana.lunes) + " al " + fechaCorta(semana.domingo);
 
   // Tres estados: ok (menos de 80%), alerta (80% o más) y exceso (más de 100%)
   caja.dataset.estado = resto < 0 ? "exceso" : porcentaje >= 80 ? "alerta" : "ok";
@@ -872,16 +934,12 @@ function pintarPresupuesto(total) {           // total viene en céntimos
     ? "Te pasaste por " + soles(-resto / 100)
     : "Te quedan " + soles(resto / 100) + " de " + soles(tope / 100);
 
-  // En el mes actual calculamos cuánto se puede gastar por día
-  const hoy = new Date();
-  const esMesActual = mesVisible === fechaDeHoy().slice(0, 7);
-  let nota = "Usaste el " + porcentaje + "% de tu presupuesto.";
-  if (esMesActual && resto > 0) {
-    const diasDelMes = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).getDate();
-    const diasQueQuedan = diasDelMes - hoy.getDate() + 1;      // contando hoy
-    nota = diasQueQuedan === 1
-      ? "Hoy es el último día del mes."
-      : "Unos " + soles(Math.floor(resto / diasQueQuedan) / 100) + " por día en los " + diasQueQuedan + " días que quedan.";
+  let nota = "Se reinicia el lunes.";
+  if (resto > 0 && semana.diasQueQuedan > 1) {
+    nota = "Unos " + soles(Math.floor(resto / semana.diasQueQuedan) / 100) + " por día hasta el domingo ("
+         + semana.diasQueQuedan + " días). Se reinicia el lunes.";
+  } else if (resto > 0) {
+    nota = "Hoy es domingo: mañana se reinicia.";
   }
   $("presupuesto-nota").textContent = nota;
 }
@@ -1149,9 +1207,10 @@ function borrarGasto(id) {
   mostrarAviso("Gasto borrado.", () => { gastos.push(borrado); });
 }
 
-// Aviso flotante con botón Deshacer. "deshacer" es la función que revierte la acción.
+// Aviso flotante. "deshacer" es la función que revierte la acción (o null si no aplica).
 function mostrarAviso(texto, deshacer) {
   accionDeshacer = deshacer;
+  $("deshacer").classList.toggle("oculto", !deshacer);   // sin función de deshacer, no mostramos el botón
   $("aviso-texto").textContent = texto;
   $("aviso-flotante").classList.remove("oculto");
   clearTimeout(temporizadorAviso);
@@ -1212,10 +1271,122 @@ function quitarRapido(id) {
   pintarTodo();
 }
 
+/* ---------- Respaldo: exportar e importar CSV ---------- */
+function exportarCSV() {
+  const propios = gastos.filter((g) => !g.ejemplo).sort((a, b) => a.fecha.localeCompare(b.fecha));
+  if (propios.length === 0) {
+    mostrarAviso("Todavía no hay gastos tuyos para exportar.", null);
+    return;
+  }
+
+  // Un CSV es texto: una línea por gasto, columnas separadas por comas
+  const entreComillas = (texto) => '"' + String(texto).replace(/"/g, '""') + '"';
+  const lineas = ["fecha,categoria,descripcion,monto"];
+  propios.forEach((g) => {
+    lineas.push([g.fecha, g.categoria, entreComillas(g.descripcion || ""), Number(g.monto).toFixed(2)].join(","));
+  });
+
+  // Creamos el archivo en memoria y simulamos un clic en un enlace de descarga
+  const archivo = new Blob(["\uFEFF" + lineas.join("\r\n")], { type: "text/csv;charset=utf-8" });
+  const enlace = document.createElement("a");
+  enlace.href = URL.createObjectURL(archivo);
+  enlace.download = "mis-gastos-" + fechaDeHoy() + ".csv";
+  document.body.append(enlace);
+  enlace.click();
+  enlace.remove();
+  setTimeout(() => URL.revokeObjectURL(enlace.href), 10000);
+
+  ajustes.ultimoRespaldo = fechaDeHoy();
+  guardarAjustes();
+  pintarTodo();
+  mostrarAviso("Respaldo listo: " + propios.length + (propios.length === 1 ? " gasto." : " gastos."), null);
+}
+
+// Convierte el texto de un CSV en una lista de filas, y cada fila en una lista de celdas
+function leerCSV(texto) {
+  texto = texto.replace(/^\uFEFF/, "");
+  const primeraLinea = texto.split(/\r?\n/)[0] || "";
+  const separador = primeraLinea.split(";").length > primeraLinea.split(",").length ? ";" : ",";
+
+  const filas = [];
+  let fila = [], celda = "", enComillas = false;
+  for (let i = 0; i < texto.length; i++) {
+    const c = texto[i];
+    if (enComillas) {
+      if (c === '"' && texto[i + 1] === '"') { celda += '"'; i++; }
+      else if (c === '"') enComillas = false;
+      else celda += c;
+    } else if (c === '"') enComillas = true;
+    else if (c === separador) { fila.push(celda); celda = ""; }
+    else if (c === "\n") { fila.push(celda); filas.push(fila); fila = []; celda = ""; }
+    else if (c !== "\r") celda += c;
+  }
+  if (celda !== "" || fila.length > 0) { fila.push(celda); filas.push(fila); }
+  return filas.filter((f) => f.some((celdaDeFila) => celdaDeFila.trim() !== ""));
+}
+
+function importarCSV(texto) {
+  const filas = leerCSV(texto);
+  const columna = { fecha: 0, categoria: 1, descripcion: 2, monto: 3 };
+
+  // Si la primera fila es el encabezado, la usamos para ubicar cada columna
+  if (filas.length > 0) {
+    const encabezado = filas[0].map((c) => c.trim().toLowerCase());
+    if (encabezado.includes("fecha")) {
+      Object.keys(columna).forEach((nombre) => {
+        const posicion = encabezado.indexOf(nombre);
+        if (posicion !== -1) columna[nombre] = posicion;
+      });
+      filas.shift();
+    }
+  }
+
+  // Para no duplicar: contamos cuántos gastos idénticos ya existen en la app
+  const firma = (g) => [g.fecha, g.categoria, g.descripcion, aCentimos(g.monto)].join("|");
+  const existentes = {};
+  gastos.forEach((g) => { existentes[firma(g)] = (existentes[firma(g)] || 0) + 1; });
+
+  const nuevos = [];
+  let repetidos = 0;
+  filas.forEach((f) => {
+    const fecha = (f[columna.fecha] || "").trim();
+    const monto = Math.round(parseFloat(String(f[columna.monto] || "").replace(",", ".")) * 100) / 100;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || !(monto > 0)) return;      // fila inválida: se ignora
+
+    const nombre = (f[columna.categoria] || "").trim().toLowerCase();
+    const categoria = CATEGORIAS.find((c) => c.id === nombre || c.nombre.toLowerCase() === nombre)
+                   || CATEGORIAS[CATEGORIAS.length - 1];
+    const gasto = {
+      id: nuevoId(), monto, fecha,
+      categoria: categoria.id,
+      descripcion: (f[columna.descripcion] || "").trim().slice(0, 80),
+      ejemplo: false,
+    };
+
+    if (existentes[firma(gasto)] > 0) { existentes[firma(gasto)]--; repetidos++; return; }
+    nuevos.push(gasto);
+  });
+
+  if (nuevos.length === 0) {
+    mostrarAviso(repetidos > 0
+      ? "Nada nuevo: esos " + repetidos + " gastos ya estaban en la app."
+      : "No encontré gastos en ese archivo. Debe ser un CSV exportado desde esta app.", null);
+    return;
+  }
+
+  gastos.push(...nuevos);
+  guardarGastos();
+  pintarTodo();
+  const ids = nuevos.map((g) => g.id);
+  mostrarAviso("Se importaron " + nuevos.length + (nuevos.length === 1 ? " gasto." : " gastos.")
+    + (repetidos > 0 ? " " + repetidos + " ya estaban." : ""),
+    () => { gastos = gastos.filter((g) => !ids.includes(g.id)); });
+}
+
 /* ---------- Presupuesto ---------- */
 function abrirPresupuesto() {
   editandoPresupuesto = true;
-  $("presupuesto-monto").value = ajustes.presupuesto || "";
+  $("presupuesto-monto").value = ajustes.presupuestoSemanal || "";
   pintarTodo();
   $("presupuesto-monto").focus();
 }
@@ -1223,14 +1394,14 @@ function abrirPresupuesto() {
 function guardarPresupuesto(evento) {
   evento.preventDefault();
   const monto = Math.round(parseFloat($("presupuesto-monto").value) * 100) / 100;
-  ajustes.presupuesto = monto > 0 ? monto : null;     // vacío o 0 = sin presupuesto
+  ajustes.presupuestoSemanal = monto > 0 ? monto : null;     // vacío o 0 = sin presupuesto
   editandoPresupuesto = false;
   guardarAjustes();
   pintarTodo();
 }
 
 function quitarPresupuesto() {
-  ajustes.presupuesto = null;
+  ajustes.presupuestoSemanal = null;
   editandoPresupuesto = false;
   guardarAjustes();
   pintarTodo();
@@ -1293,6 +1464,18 @@ function iniciar() {
   $("mes-siguiente").addEventListener("click", () => cambiarMes(1));
   $("borrar-ejemplos").addEventListener("click", borrarEjemplos);
   $("deshacer").addEventListener("click", deshacerUltimo);
+
+  // Respaldo
+  $("exportar").addEventListener("click", exportarCSV);
+  $("importar").addEventListener("click", () => $("archivo-importar").click());
+  $("archivo-importar").addEventListener("change", (evento) => {
+    const archivo = evento.target.files[0];
+    if (!archivo) return;
+    archivo.text()
+      .then(importarCSV)
+      .catch(() => mostrarAviso("No se pudo leer ese archivo.", null));
+    evento.target.value = "";                 // permite elegir el mismo archivo otra vez
+  });
 
   // Presupuesto
   $("presupuesto-editar").addEventListener("click", abrirPresupuesto);
