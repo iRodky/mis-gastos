@@ -4,6 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Mis Gastos</title>
+
+<!-- Ícono y nombre para "Agregar a pantalla de inicio" en el iPhone -->
+<meta name="apple-mobile-web-app-title" content="Mis Gastos">
+<link rel="apple-touch-icon" href="icono.png">
+<link rel="icon" type="image/png" href="icono.png">
+<meta name="theme-color" content="#f1f4ef" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e1412" media="(prefers-color-scheme: dark)">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Onest:wght@400..700&display=swap" rel="stylesheet">
@@ -25,6 +32,10 @@
   --acento: #0b7a57;       /* verde billete: botones y foco */
   --acento-tinta: #ffffff; /* texto sobre el acento */
   --error: #b3261e;
+  /* colores de la barra de presupuesto (van sobre la tarjeta oscura del total) */
+  --barra-ok: #3dc596;
+  --barra-alerta: #f2b544;
+  --barra-exceso: #ff8a80;
 
   --fuente-titulo: "Bricolage Grotesque", "Trebuchet MS", system-ui, sans-serif;
   --fuente-texto: "Onest", system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -43,6 +54,9 @@
     --acento: #3dc596;
     --acento-tinta: #06231a;
     --error: #ff8a80;
+    --barra-ok: #0b7a57;
+    --barra-alerta: #9a6200;
+    --barra-exceso: #b3261e;
     color-scheme: dark;
   }
 }
@@ -55,6 +69,9 @@
   --acento: #3dc596;
   --acento-tinta: #06231a;
   --error: #ff8a80;
+  --barra-ok: #0b7a57;
+  --barra-alerta: #9a6200;
+  --barra-exceso: #b3261e;
   color-scheme: dark;
 }
 
@@ -89,7 +106,7 @@ button { cursor: pointer; }
 
 /* =========================================================
    3. ESTRUCTURA GENERAL
-   Celular: una sola columna (total, formulario, desglose, lista).
+   Celular: una sola columna (total, rápidos, formulario, desglose, lista).
    Pantalla ancha: dos columnas, el resumen queda fijo a la izquierda.
    ========================================================= */
 .app {
@@ -121,9 +138,10 @@ button { cursor: pointer; }
 .columnas { display: flex; flex-direction: column; gap: 16px; }
 .columna { display: contents; }   /* en celular las columnas "desaparecen" */
 .tarjeta-total    { order: 1; }
-.tarjeta-form     { order: 2; }
-.tarjeta-desglose { order: 3; }
-.tarjeta-lista    { order: 4; }
+.tarjeta-rapidos  { order: 2; }
+.tarjeta-form     { order: 3; }
+.tarjeta-desglose { order: 4; }
+.tarjeta-lista    { order: 5; }
 
 @media (min-width: 860px) {
   .app { padding-top: 32px; }
@@ -210,6 +228,79 @@ button { cursor: pointer; }
   font-size: 0.9rem;
   opacity: 0.85;
 }
+
+/* Presupuesto mensual: barra de avance dentro de la tarjeta del total */
+.presupuesto {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+}
+.presupuesto-vista { display: flex; flex-direction: column; gap: 8px; }
+.presupuesto-barra {
+  height: 8px; border-radius: 4px;
+  background: color-mix(in srgb, currentColor 18%, transparent);
+  overflow: hidden;
+}
+.presupuesto-barra b { display: block; height: 100%; border-radius: 4px; background: var(--barra-ok); }
+.presupuesto[data-estado="alerta"] .presupuesto-barra b { background: var(--barra-alerta); }
+.presupuesto[data-estado="exceso"] .presupuesto-barra b { background: var(--barra-exceso); }
+.presupuesto-fila {
+  display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline;
+  gap: 2px 12px;
+  font-size: 0.92rem;
+}
+.presupuesto-estado { font-weight: 600; font-variant-numeric: tabular-nums; }
+.presupuesto[data-estado="alerta"] .presupuesto-estado { color: var(--barra-alerta); }
+.presupuesto[data-estado="exceso"] .presupuesto-estado { color: var(--barra-exceso); }
+.presupuesto-nota { margin: 0; font-size: 0.82rem; opacity: 0.75; }
+.enlace-claro {
+  border: 0; background: none; color: inherit;
+  padding: 6px 2px;
+  font-size: 0.85rem; opacity: 0.85;
+  text-decoration: underline; text-underline-offset: 3px;
+}
+.presupuesto-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.presupuesto-form input {
+  flex: 1 1 110px; min-width: 0; min-height: 42px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, currentColor 40%, transparent);
+  background: transparent; color: inherit;
+}
+.boton-mini {
+  min-height: 42px; padding: 8px 14px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, currentColor 40%, transparent);
+  background: transparent; color: inherit;
+  font-weight: 600; font-size: 0.9rem;
+}
+.boton-mini-lleno { background: var(--fondo); color: var(--tinta); border-color: transparent; }
+
+/* =========================================================
+   5b. GASTOS RÁPIDOS
+   ========================================================= */
+.rapidos-cabecera { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.rapidos-ayuda { margin: -8px 0 12px; font-size: 0.85rem; color: var(--tenue); }
+.rapidos-lista { display: flex; flex-wrap: wrap; gap: 8px; }
+.rapido {
+  display: inline-flex; align-items: center; gap: 8px;
+  min-height: 44px;
+  padding: 6px 14px;
+  border: 1px solid var(--linea);
+  border-radius: 12px;
+  background: var(--fondo);
+  font-weight: 500;
+  text-align: left;
+}
+.rapido:hover { border-color: var(--color-cat); }
+.rapido:active { transform: scale(0.97); }
+.rapido i { width: 10px; height: 10px; border-radius: 50%; background: var(--color-cat); flex: none; }
+.rapido b { font-family: var(--fuente-titulo); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rapido.quitando { border-style: dashed; border-color: var(--error); }
+.rapido.quitando b { color: var(--error); }
+
+.casilla { display: flex; align-items: center; gap: 10px; font-size: 0.92rem; cursor: pointer; }
+.casilla input { width: 20px; height: 20px; accent-color: var(--acento); flex: none; }
 
 /* =========================================================
    6. FORMULARIO
@@ -448,6 +539,23 @@ fieldset.campo { border: 0; margin: 0; padding: 0; }
         <p class="total-etiqueta" id="total-etiqueta"></p>
         <p class="total-monto" id="total-monto"></p>
         <p class="total-detalle" id="total-detalle"></p>
+
+        <div class="presupuesto" id="presupuesto">
+          <div class="presupuesto-vista" id="presupuesto-vista">
+            <div class="presupuesto-barra" id="presupuesto-barra"><b id="presupuesto-relleno"></b></div>
+            <div class="presupuesto-fila">
+              <span class="presupuesto-estado" id="presupuesto-estado"></span>
+              <button class="enlace-claro" id="presupuesto-editar" type="button">Cambiar</button>
+            </div>
+            <p class="presupuesto-nota" id="presupuesto-nota"></p>
+          </div>
+          <form class="presupuesto-form oculto" id="presupuesto-form" novalidate>
+            <label class="solo-lectores" for="presupuesto-monto">Presupuesto mensual en soles</label>
+            <input id="presupuesto-monto" type="number" inputmode="decimal" step="0.01" min="0" placeholder="Presupuesto del mes, ej.: 400" autocomplete="off">
+            <button class="boton-mini boton-mini-lleno" type="submit">Guardar</button>
+            <button class="boton-mini" id="presupuesto-quitar" type="button">Quitar</button>
+          </form>
+        </div>
       </section>
 
       <section class="tarjeta tarjeta-desglose">
@@ -465,6 +573,15 @@ fieldset.campo { border: 0; margin: 0; padding: 0; }
 
     <!-- Columna derecha: formulario y lista -->
     <div class="columna">
+      <section class="tarjeta tarjeta-rapidos">
+        <div class="rapidos-cabecera">
+          <h2>Gastos rápidos</h2>
+          <button class="enlace" id="rapidos-editar" type="button">Editar</button>
+        </div>
+        <p class="rapidos-ayuda" id="rapidos-ayuda"></p>
+        <div class="rapidos-lista" id="rapidos-lista"></div>
+      </section>
+
       <section class="tarjeta tarjeta-form" id="seccion-form">
         <h2 id="form-titulo">Nuevo gasto</h2>
         <form class="form" id="form" novalidate>
@@ -492,6 +609,11 @@ fieldset.campo { border: 0; margin: 0; padding: 0; }
             <input class="entrada" id="descripcion" type="text" maxlength="80" placeholder="Ej.: menú del día" autocomplete="off">
           </div>
 
+          <label class="casilla" for="guardar-rapido">
+            <input type="checkbox" id="guardar-rapido">
+            Guardar también como gasto rápido
+          </label>
+
           <p class="mensaje-error oculto" id="form-error" role="alert"></p>
 
           <div class="botones">
@@ -516,7 +638,7 @@ fieldset.campo { border: 0; margin: 0; padding: 0; }
 </div>
 
 <div class="aviso-flotante oculto" id="aviso-flotante" role="status">
-  <span>Gasto borrado.</span>
+  <span id="aviso-texto"></span>
   <button type="button" id="deshacer">Deshacer</button>
 </div>
 
@@ -537,7 +659,14 @@ const CATEGORIAS = [
   { id: "otros",       nombre: "Otros",       color: "#74857d" },
 ];
 
-const CLAVE_GUARDADO = "mis-gastos-v1";   // nombre bajo el que se guarda en localStorage
+const CLAVE_GUARDADO = "mis-gastos-v1";          // gastos, en localStorage
+const CLAVE_AJUSTES  = "mis-gastos-ajustes-v1";  // presupuesto y gastos rápidos
+
+// Gastos rápidos que aparecen la primera vez (se pueden quitar con "Editar")
+const RAPIDOS_INICIALES = [
+  { id: "r1", monto: 2.5, categoria: "transporte", descripcion: "Pasaje" },
+  { id: "r2", monto: 12,  categoria: "comida",     descripcion: "Menú" },
+];
 
 /* =========================================================
    2. ESTADO
@@ -549,7 +678,10 @@ const CLAVE_GUARDADO = "mis-gastos-v1";   // nombre bajo el que se guarda en loc
 let gastos = [];              // todos los gastos, de todos los meses
 let mesVisible = "";          // mes que se muestra, formato "AAAA-MM"
 let editandoId = null;        // id del gasto en edición (null = creando uno nuevo)
-let ultimoBorrado = null;     // para poder deshacer un borrado
+let ajustes = { presupuesto: null, rapidos: [] };   // presupuesto mensual (en soles) y gastos rápidos
+let editandoPresupuesto = false;   // true mientras se muestra el campo para cambiarlo
+let editandoRapidos = false;       // true = al tocar un gasto rápido se quita en vez de agregarse
+let accionDeshacer = null;         // qué hacer si se toca "Deshacer" en el aviso
 let guardadoDisponible = true;
 let grafico = null;           // el objeto de Chart.js
 let temporizadorAviso = null;
@@ -574,6 +706,26 @@ function cargarGastos() {
 function guardarGastos() {
   try {
     localStorage.setItem(CLAVE_GUARDADO, JSON.stringify(gastos));
+  } catch (error) {
+    guardadoDisponible = false;
+  }
+}
+
+function cargarAjustes() {
+  try {
+    const datos = JSON.parse(localStorage.getItem(CLAVE_AJUSTES));
+    if (datos && Array.isArray(datos.rapidos)) {
+      return { presupuesto: datos.presupuesto > 0 ? datos.presupuesto : null, rapidos: datos.rapidos };
+    }
+  } catch (error) {
+    guardadoDisponible = false;
+  }
+  return { presupuesto: null, rapidos: RAPIDOS_INICIALES.slice() };
+}
+
+function guardarAjustes() {
+  try {
+    localStorage.setItem(CLAVE_AJUSTES, JSON.stringify(ajustes));
   } catch (error) {
     guardadoDisponible = false;
   }
@@ -663,6 +815,8 @@ function pintarTodo() {
 
   $("mes-actual").textContent = nombreDelMes(mesVisible);
   pintarTotal(lista, totales, total);
+  pintarPresupuesto(total);
+  pintarRapidos();
   pintarGrafico(lista, totales, total);
   pintarLeyenda(totales, total);
   pintarLista(lista);
@@ -688,6 +842,73 @@ function pintarTotal(lista, totales, total) {
     crear("span", "", lista.length === 1 ? "1 gasto" : lista.length + " gastos"),
     crear("span", "", "Más gasto en " + mayor.nombre.toLowerCase())
   );
+}
+
+function pintarPresupuesto(total) {           // total viene en céntimos
+  const caja = $("presupuesto");
+  $("presupuesto-vista").classList.toggle("oculto", editandoPresupuesto);
+  $("presupuesto-form").classList.toggle("oculto", !editandoPresupuesto);
+  if (editandoPresupuesto) return;
+
+  const hayPresupuesto = ajustes.presupuesto > 0;
+  $("presupuesto-barra").classList.toggle("oculto", !hayPresupuesto);
+  $("presupuesto-nota").classList.toggle("oculto", !hayPresupuesto);
+  $("presupuesto-editar").textContent = hayPresupuesto ? "Cambiar" : "Definir presupuesto";
+
+  if (!hayPresupuesto) {
+    caja.dataset.estado = "";
+    $("presupuesto-estado").textContent = "Sin presupuesto mensual";
+    return;
+  }
+
+  const tope = aCentimos(ajustes.presupuesto);
+  const resto = tope - total;
+  const porcentaje = Math.round((total / tope) * 100);
+
+  // Tres estados: ok (menos de 80%), alerta (80% o más) y exceso (más de 100%)
+  caja.dataset.estado = resto < 0 ? "exceso" : porcentaje >= 80 ? "alerta" : "ok";
+  $("presupuesto-relleno").style.width = Math.min(100, porcentaje) + "%";
+  $("presupuesto-estado").textContent = resto < 0
+    ? "Te pasaste por " + soles(-resto / 100)
+    : "Te quedan " + soles(resto / 100) + " de " + soles(tope / 100);
+
+  // En el mes actual calculamos cuánto se puede gastar por día
+  const hoy = new Date();
+  const esMesActual = mesVisible === fechaDeHoy().slice(0, 7);
+  let nota = "Usaste el " + porcentaje + "% de tu presupuesto.";
+  if (esMesActual && resto > 0) {
+    const diasDelMes = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).getDate();
+    const diasQueQuedan = diasDelMes - hoy.getDate() + 1;      // contando hoy
+    nota = diasQueQuedan === 1
+      ? "Hoy es el último día del mes."
+      : "Unos " + soles(Math.floor(resto / diasQueQuedan) / 100) + " por día en los " + diasQueQuedan + " días que quedan.";
+  }
+  $("presupuesto-nota").textContent = nota;
+}
+
+function pintarRapidos() {
+  const lista = $("rapidos-lista");
+  lista.replaceChildren();
+
+  $("rapidos-editar").textContent = editandoRapidos ? "Listo" : "Editar";
+  $("rapidos-editar").classList.toggle("oculto", ajustes.rapidos.length === 0);
+  $("rapidos-ayuda").textContent =
+    ajustes.rapidos.length === 0 ? "Aún no tienes ninguno. Marca “Guardar también como gasto rápido” al agregar un gasto."
+    : editandoRapidos ? "Toca uno para quitarlo de esta lista."
+    : "Un toque y se agrega con fecha de hoy.";
+
+  ajustes.rapidos.forEach((r) => {
+    const categoria = buscarCategoria(r.categoria);
+    const nombre = r.descripcion || categoria.nombre;
+
+    const boton = crear("button", "rapido" + (editandoRapidos ? " quitando" : ""));
+    boton.type = "button";
+    boton.dataset.id = r.id;
+    boton.style.setProperty("--color-cat", categoria.color);
+    boton.setAttribute("aria-label", (editandoRapidos ? "Quitar " : "Agregar ") + nombre + ", " + soles(r.monto));
+    boton.append(crear("i"), crear("span", "", nombre), crear("b", "", editandoRapidos ? "×" : soles(r.monto)));
+    lista.append(boton);
+  });
 }
 
 function pintarGrafico(lista, totales, total) {
@@ -875,6 +1096,8 @@ function guardarFormulario(evento) {
     gastos.push({ id: nuevoId(), ...datos, ejemplo: false });
   }
 
+  if ($("guardar-rapido").checked) agregarARapidos(datos);
+
   mesVisible = datos.fecha.slice(0, 7);       // saltamos al mes del gasto para que se vea
   limpiarFormulario();
   guardarGastos();
@@ -917,20 +1140,27 @@ function borrarGasto(id) {
   const posicion = gastos.findIndex((g) => g.id === id);
   if (posicion === -1) return;
 
-  ultimoBorrado = gastos.splice(posicion, 1)[0];
+  const borrado = gastos.splice(posicion, 1)[0];
   if (editandoId === id) limpiarFormulario();
   guardarGastos();
   pintarTodo();
 
-  // Mostramos "Deshacer" por 6 segundos en vez de preguntar "¿seguro?"
+  // Mostramos "Deshacer" unos segundos en vez de preguntar "¿seguro?"
+  mostrarAviso("Gasto borrado.", () => { gastos.push(borrado); });
+}
+
+// Aviso flotante con botón Deshacer. "deshacer" es la función que revierte la acción.
+function mostrarAviso(texto, deshacer) {
+  accionDeshacer = deshacer;
+  $("aviso-texto").textContent = texto;
   $("aviso-flotante").classList.remove("oculto");
   clearTimeout(temporizadorAviso);
   temporizadorAviso = setTimeout(ocultarAviso, 6000);
 }
 
-function deshacerBorrado() {
-  if (ultimoBorrado) {
-    gastos.push(ultimoBorrado);
+function deshacerUltimo() {
+  if (accionDeshacer) {
+    accionDeshacer();
     guardarGastos();
     pintarTodo();
   }
@@ -938,9 +1168,72 @@ function deshacerBorrado() {
 }
 
 function ocultarAviso() {
-  ultimoBorrado = null;
+  accionDeshacer = null;
   clearTimeout(temporizadorAviso);
   $("aviso-flotante").classList.add("oculto");
+}
+
+/* ---------- Gastos rápidos ---------- */
+function usarRapido(id) {
+  const rapido = ajustes.rapidos.find((r) => r.id === id);
+  if (!rapido) return;
+
+  const gasto = {
+    id: nuevoId(),
+    monto: rapido.monto,
+    categoria: rapido.categoria,
+    descripcion: rapido.descripcion,
+    fecha: fechaDeHoy(),
+    ejemplo: false,
+  };
+  gastos.push(gasto);
+  mesVisible = gasto.fecha.slice(0, 7);
+  guardarGastos();
+  pintarTodo();
+
+  const nombre = rapido.descripcion || buscarCategoria(rapido.categoria).nombre;
+  mostrarAviso("Agregado: " + nombre + ", " + soles(rapido.monto), () => {
+    gastos = gastos.filter((g) => g.id !== gasto.id);
+  });
+}
+
+function agregarARapidos(datos) {
+  const yaExiste = ajustes.rapidos.some((r) =>
+    r.monto === datos.monto && r.categoria === datos.categoria && r.descripcion === datos.descripcion);
+  if (yaExiste) return;
+  ajustes.rapidos.push({ id: nuevoId(), monto: datos.monto, categoria: datos.categoria, descripcion: datos.descripcion });
+  guardarAjustes();
+}
+
+function quitarRapido(id) {
+  ajustes.rapidos = ajustes.rapidos.filter((r) => r.id !== id);
+  if (ajustes.rapidos.length === 0) editandoRapidos = false;
+  guardarAjustes();
+  pintarTodo();
+}
+
+/* ---------- Presupuesto ---------- */
+function abrirPresupuesto() {
+  editandoPresupuesto = true;
+  $("presupuesto-monto").value = ajustes.presupuesto || "";
+  pintarTodo();
+  $("presupuesto-monto").focus();
+}
+
+function guardarPresupuesto(evento) {
+  evento.preventDefault();
+  const monto = Math.round(parseFloat($("presupuesto-monto").value) * 100) / 100;
+  ajustes.presupuesto = monto > 0 ? monto : null;     // vacío o 0 = sin presupuesto
+  editandoPresupuesto = false;
+  guardarAjustes();
+  pintarTodo();
+}
+
+function quitarPresupuesto() {
+  ajustes.presupuesto = null;
+  editandoPresupuesto = false;
+  guardarAjustes();
+  pintarTodo();
 }
 
 function borrarEjemplos() {
@@ -987,6 +1280,7 @@ function crearEjemplos() {
 function iniciar() {
   const guardados = cargarGastos();
   gastos = guardados === null ? crearEjemplos() : guardados;
+  ajustes = cargarAjustes();
   mesVisible = fechaDeHoy().slice(0, 7);
 
   pintarPastillas();
@@ -998,7 +1292,21 @@ function iniciar() {
   $("mes-anterior").addEventListener("click", () => cambiarMes(-1));
   $("mes-siguiente").addEventListener("click", () => cambiarMes(1));
   $("borrar-ejemplos").addEventListener("click", borrarEjemplos);
-  $("deshacer").addEventListener("click", deshacerBorrado);
+  $("deshacer").addEventListener("click", deshacerUltimo);
+
+  // Presupuesto
+  $("presupuesto-editar").addEventListener("click", abrirPresupuesto);
+  $("presupuesto-form").addEventListener("submit", guardarPresupuesto);
+  $("presupuesto-quitar").addEventListener("click", quitarPresupuesto);
+
+  // Gastos rápidos: un toque agrega; en modo "Editar", un toque quita
+  $("rapidos-editar").addEventListener("click", () => { editandoRapidos = !editandoRapidos; pintarTodo(); });
+  $("rapidos-lista").addEventListener("click", (evento) => {
+    const boton = evento.target.closest("button[data-id]");
+    if (!boton) return;
+    if (editandoRapidos) quitarRapido(boton.dataset.id);
+    else usarRapido(boton.dataset.id);
+  });
 
   // Un solo manejador para todos los botones Editar/Borrar de la lista
   $("lista").addEventListener("click", (evento) => {
